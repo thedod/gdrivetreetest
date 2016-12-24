@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html language='he'>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+    <title>Google Drive tree view</title>
+
+    <script type="text/javascript">
+
+      // The Browser API key obtained from the Google Developers Console.
+      var developerKey = 'AIzaSyDyIabEHOtRTzKhI6pbn80q4NK2O8y-OSw';
+
+      // The Client ID obtained from the Google Developers Console. Replace with your own Client ID.
+      var clientId = "941910335008-9pi9es3rp5s6ck1hha3sg62848k3i0im.apps.googleusercontent.com";
+
+      // Scope to use to access user's photos.
+      var scope = [
+        'https://www.googleapis.com/auth/drive.readonly'];
+
+      var pickerApiLoaded = false;
+      var driveApiLoaded = false;
+      var oauthToken;
+
+      var tree = {};
+      var num_requests = 0;
+
+      function enterRequest(tag) {
+        console.log('>'+tag);
+        num_requests++;
+      }
+
+      function exitRequest(tag) {
+        console.log('<'+tag);
+        if (!--num_requests)
+          // document.getElementById('result').innerHTML +=
+          //  '<pre style="direction:ltr">' + JSON.stringify(tree,null,4) + '</pre>\n';
+          document.getElementById('result').innerHTML +=
+            treeToDL(tree);
+      }
+
+      function treePush(node, path, id) {
+        var child = node[path[0]] || {};
+        if (path.length>1) {
+          child[path[1]] = treePush(child, path.slice(1), id);
+        } else {
+          child._id = id;
+        }
+        node[path[0]] = child;
+        return child;
+      }
+
+      function sortedKeys(obj) {
+        var result = [];
+        for (k in obj)
+          if (k!='_id')
+            result.push(k);
+        return(result.sort());
+      }
+
+      function treeToDL(tree) {
+        var res='<dl>\n';
+        var sk = sortedKeys(tree);
+        for (var i=0; i<sk.length; i++) {
+          k = sk[i];
+          res += '<dt><a target="_blank" ' +
+            'href="https://docs.google.com/folderview?id=' +
+            tree[k]._id + '">' + k + '</a></dt>\n';
+          res += '<dd>' + treeToDL(tree[k]) + '</dd>\n';
+        }
+        res += '</dl>\n';
+        return res;  
+      }
+  
+      function onApiLoad() {
+        gapi.load('auth', {'callback': onAuthApiLoad});
+        gapi.load('picker', {'callback': onPickerApiLoad});
+      }
+
+      function onAuthApiLoad() {
+        window.gapi.auth.authorize(
+            {
+              'client_id': clientId,
+              'scope': scope,
+              'immediate': false
+            },
+            handleAuthResult);
+      }
+
+      function onPickerApiLoad() {
+        pickerApiLoaded = true;
+        //createPicker();
+        document.getElementById('picker_button').
+          removeAttribute('disabled');
+      }
+
+      function handleAuthResult(authResult) {
+        if (authResult && !authResult.error) {
+          oauthToken = authResult.access_token;
+          gapi.client.load('drive', 'v3');
+        }
+      }
+
+      // Create and render a Picker object for picking user Photos.
+      function createPicker() {
+        if (pickerApiLoaded && oauthToken) {
+          var picker = new google.picker.PickerBuilder().
+              //addView(google.picker.ViewId.FOLDERS).
+              addView(new google.picker.DocsView(google.picker.ViewId.FOLDERS).
+                  setSelectFolderEnabled(true)).
+              setOAuthToken(oauthToken).
+              setDeveloperKey(developerKey).
+              setCallback(pickerCallback).
+              setTitle('Select folder tree root').
+              build();
+          picker.setVisible(true);
+        }
+      }
+
+      function pickerCallback(data) {
+        var header = '';
+        var doc = null;
+        if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
+          doc = data[google.picker.Response.DOCUMENTS][0];
+          header = '<h3><a target="_blank" href="' + doc.url + '">' +
+            doc.name + '</a></h3>';
+          tree = {};
+        }
+        var message = 
+        document.getElementById('result').innerHTML = header + '\n';
+        if (doc) {
+          listFolders(doc.id);
+        }
+      }
+      function handleFolderList(response, path) {
+        var folders = response.files;
+        if (folders && folders.length > 0) {
+          for (var i = 0; i < folders.length; i++) {
+            var folder = folders[i];
+            var newpath = path? path.slice(): [];
+            newpath.push(folder.name);
+            treePush(tree, newpath, folder.id);
+            listFolders(folder.id, newpath);
+          }
+        }
+      }
+      
+      function listFolders(parentId, path) {
+        enterRequest((path||[]).join('/'));
+        gapi.client.drive.files.list({
+          'q': "'" + parentId +
+            "' in parents and mimeType contains 'folder'",
+        }).execute(function(response) {
+          handleFolderList(response, path);
+          exitRequest((path||[]).join('/'));
+        });
+      }
+
+      
+    </script>
+  </head>
+  <body>
+    <p>
+      This page lets you pick a folder from your google drive.
+      It then displays it as nested <code>&lt;dl/&gt;</code>s.
+    </p>
+    <p>
+      The problem is that sometimes [when the sub-tree you pick is "large enough"], some of the results are missing.
+    </p>
+    <p>
+      Note:
+      <ul>
+        <li>This page is supposed to ask you to allow popups from it, as well as from <code>accounts.google.com</code>.</li>
+        <li>There are <code>console.log()</code>s that may hopefully be helpful.</li>
+      </ul>
+    </p>
+    <button id="picker_button" onclick="createPicker()" disabled="disabled">Select folder</button>
+    <div id="result"></div>
+
+    <!-- The Google API Loader script. -->
+    <script src="https://apis.google.com/js/client.js"></script>
+    <script type="text/javascript" src="https://apis.google.com/js/api.js?onload=onApiLoad"></script>
+  </body>
+</html>
