@@ -168,10 +168,13 @@
     <p>
       Note:
       <ul>
-        <li>This page is supposed to ask you to allow popups from it, as well as from <code>accounts.google.com</code>.</li>
+        <li>This page is supposed to ask you to allow a popup from it <code>accounts.google.com</code>.</li>
+        <li>You would then need to allow this app readonly access to your google drive
+          (If you're worried, view source: it's a simple single-html-file thing).
         <li>There are <code>console.log()</code>s that may hopefully be helpful.</li>
       </ul>
     </p>
+    <p><a href="https://github.com/thedod/gdrivetreetest#readme">Code</a></p>
     <button id="picker_button" onclick="createPicker()" disabled="disabled">Select folder</button>
     <div id="result"></div>
 
